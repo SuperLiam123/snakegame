@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>Roguelike 贪吃蛇 (v9.0 对决版)</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap');
+
+        /* 1. 基础页面设置 */
+        body {
+            background-color: #111a22; color: #e0f4ff;
+            font-family: 'Roboto', 'Segoe UI', 'Helvetica Neue', sans-serif;
+            display: flex; flex-direction: column; align-items: center;
+            margin: 0; padding: 20px; min-height: 100vh; box-sizing: border-box;
+            transition: background-color 0.5s;
+        }
+        
+        h1 {
+            color: #00d9ff; text-transform: uppercase;
+            text-shadow: 0 0 10px rgba(0, 217, 255, 0.7);
+            margin-top: 0; margin-bottom: 15px; text-align: center;
+        }
+
+        /* 2. 页面主布局 */
+        #page-wrapper {
+            display: flex; flex-direction: row; flex-wrap: wrap;
+            justify-content: center; align-items: flex-start;
+            gap: 20px; width: 100%;
+        }
+
+        /* 3. 游戏主列 */
+        #game-column {
+            display: flex; flex-direction: column;
+            width: 100%; max-width: 630px; min-width: 300px;
+        }
+
+        /* 4. 游戏容器 */
+        #game-container {
+            position: relative; border: 2px solid #00d9ff;
+            box-shadow: 0 0 20px rgba(0, 217, 255, 0.4);
+            border-radius: 4px; background-color: #000;
+            overflow: hidden; width: 100%; aspect-ratio: 1 / 1; 
+            transition: border-color 0.5s, box-shadow 0.5s;
+        }
+        
+        canvas { display: block; width: 100%; height: 100%; background-color: #000; }
+        
+        #flash-overlay {
+            position: absolute; top: 0; left: 0;
+            width: 100%; height: 100%;
+            opacity: 0; pointer-events: none; z-index: 5;
+        }
+        .flash-red { animation: flashRed 0.2s ease-out; }
+        .flash-green { animation: flashGreen 0.2s ease-out; }
+        @keyframes flashRed { 0% { opacity: 0.7; background: #ff0000; } 100% { opacity: 0; } }
+        @keyframes flashGreen { 0% { opacity: 0.7; background: #00ff00; } 100% { opacity: 0; } }
+
+        /* 5. 【修改】UI条 (分数 + VS + 分数) */
+        #ui-bar {
+            width: 100%; display: flex; align-items: center;
+            justify-content: space-between;
+            gap: 10px; font-size: 1.4em; /* 字体放大 */
+            font-weight: 700; padding: 15px 20px; /* 增加内边距 */
+            text-transform: uppercase;
+            border-bottom: 1px solid rgba(0, 217, 255, 0.3);
+            margin-bottom: 20px; box-sizing: border-box; 
+            transition: border-color 0.5s;
+        }
+        
+        /* 【新】P1分数 (皮肤色) */
+        #p1-score {
+            flex-basis: 35%; text-align: left;
+            color: #00d9ff; /* 默认赛博蓝 */
+            text-shadow: 0 0 8px #00d9ff;
+            transition: color 0.5s, text-shadow 0.5s;
+        }
+        /* 【新】P2分数 (绿色) */
+        #p2-score {
+            flex-basis: 35%; text-align: right;
+            color: #2bff88; /* P2 绿 */
+            text-shadow: 0 0 8px #2bff88;
+            display: none; /* 默认隐藏 */
+        }
+        /* 【新】VS 标志 */
+        #vs-display { 
+            flex-basis: 20%; text-align: center;
+            color: #f1c40f; font-size: 1.2em;
+            text-shadow: 0 0 8px rgba(241, 196, 15, 0.7);
+            display: none; /* 默认隐藏 */
+        }
+
+        /* 6. 体力条和状态 */
+        #status-bars {
+            width: 100%; padding: 0 15px 15px 15px;
+            box-sizing: border-box; margin-top: 15px;
+        }
+        #p1-stamina-container {
+            background-color: #2c3e50; border: 1px solid #00d9ff; height: 15px;
+            transition: border-color 0.5s;
+        }
+        #p1-stamina-bar { width: 100%; height: 100%; background-color: #3498db; transition: width 0.1s linear; }
+        #p2-stamina-container {
+            background-color: #2c3e50; border: 1px solid #2bff88; height: 15px;
+            margin-top: 5px; display: none;
+        }
+        #p2-stamina-bar { width: 100%; height: 100%; background-color: #2bff88; transition: width 0.1s linear; }
+        #buff-status {
+            font-size: 0.9em; color: #ecf0f1;
+            height: 20px; margin-top: 5px; text-align: center;
+        }
+
+        /* 7. 规则列 */
+        #rules-column {
+            width: 300px; flex-shrink: 0;
+            background: rgba(0, 217, 255, 0.05);
+            border: 1px solid rgba(0, 217, 255, 0.3);
+            padding: 10px 25px 25px 25px; border-radius: 5px;
+            transition: all 0.5s;
+        }
+        #rules-column h2 { color: #f1c40f; border-bottom: 1px solid rgba(241, 196, 15, 0.4); padding-bottom: 10px; }
+        #rules-column ul { padding-left: 20px; line-height: 1.6; }
+        #rules-column li { margin-bottom: 15px; }
+        .color-normal { color: #f1c40f; } .color-ghost { color: #9b59b6; }
+        .color-chili { color: #e67e22; } .color-health { color: #2bff88; }
+        .color-enemy { color: #ff3b3b; }
+        .color-pvp { color: #ff8f8f; }
+
+        /* 8. 弹窗 */
+        .modal {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(10, 20, 30, 0.92); 
+            display: none; flex-direction: column;
+            align-items: center; justify-content: center;
+            text-align: center; backdrop-filter: blur(3px); z-index: 10;
+        }
+        #start-modal { display: flex; }
+        .modal h2 { color: #f1c40f; font-size: 2em; margin-bottom: 10px; }
+        .selection-container { display: flex; gap: 10px; margin: 10px 0; }
+        .modal-button, .select-button {
+            background-color: transparent; border: 2px solid #00d9ff;
+            color: #00d9ff; padding: 12px 25px; font-size: 1em;
+            font-weight: 700; cursor: pointer; border-radius: 3px;
+            transition: all 0.3s ease;
+        }
+        .modal-button:hover, .select-button:hover { background-color: #00d9ff; color: #111a22; }
+        .select-button { width: 140px; padding: 10px; font-size: 0.9em; }
+        .select-button.active { background-color: #00d9ff; color: #111a22; box-shadow: 0 0 10px #00d9ff; }
+        #start-1p-button, #start-2p-button, #restart-button {
+            border-color: #2bff88; color: #2bff88; width: 280px;
+        }
+        #start-1p-button:hover, #start-2p-button:hover, #restart-button:hover {
+            background-color: #2bff88; color: #111a22;
+        }
+        #start-2p-button { margin-top: 10px; }
+
+        #notification-modal {
+            background-color: rgba(10, 20, 30, 0.85);
+            pointer-events: none;
+        }
+        #notification-modal h2 { font-size: 1.8em; color: #2bff88; text-shadow: 0 0 8px #2bff88; }
+        #notification-modal p { font-size: 1.2em; color: #ffffff; }
+
+        /* 9. 皮肤样式 */
+        .skin-cyber h1 { color: #00d9ff; text-shadow: 0 0 10px rgba(0, 217, 255, 0.7); }
+        .skin-cyber #game-container { border-color: #00d9ff; box-shadow: 0 0 20px rgba(0, 217, 255, 0.4); }
+        .skin-cyber #ui-bar { border-color: rgba(0, 217, 255, 0.3); }
+        .skin-cyber #p1-stamina-container { border-color: #00d9ff; }
+        .skin-cyber #p1-score { color: #00d9ff; text-shadow: 0 0 8px #00d9ff; }
+        .skin-cyber #rules-column { background: rgba(0, 217, 255, 0.05); border-color: rgba(0, 217, 255, 0.3); }
+        
+        .skin-sakura { background-color: #2a1a22; }
+        .skin-sakura h1 { color: #ffb6c1; text-shadow: 0 0 10px rgba(255, 182, 193, 0.7); }
+        .skin-sakura #game-container { border-color: #ffb6c1; box-shadow: 0 0 20px rgba(255, 182, 193, 0.4); }
+        .skin-sakura #ui-bar { border-color: rgba(255, 182, 193, 0.3); }
+        .skin-sakura #p1-stamina-container { border-color: #ffb6c1; }
+        .skin-sakura #p1-score { color: #ffb6c1; text-shadow: 0 0 8px #ffb6c1; }
+        .skin-sakura #rules-column { background: rgba(255, 182, 193, 0.05); border-color: rgba(255, 182, 193, 0.3); }
+        .skin-sakura .modal-button, .skin-sakura .select-button { border-color: #ffb6c1; color: #ffb6c1; }
+        .skin-sakura .modal-button:hover, .skin-sakura .select-button:hover { background-color: #ffb6c1; color: #111a22; }
+        .skin-sakura .select-button.active { background-color: #ffb6c1; color: #111a22; box-shadow: 0 0 10px #ffb6c1; }
+
+    </style>
+</head>
+<body class="skin-cyber">
+
+    <div id="page-wrapper">
+        <div id="game-column">
+            <h1>:: 贪吃蛇：对决 v9.0 ::</h1>
+
+            <div id="ui-bar">
+                <div id="p1-score">P1 分数: 0</div>
+                <div id="vs-display">VS</div>
+                <div id="p2-score">P2 分数: 0</div>
+            </div>
+
+            <div id="game-container">
+                <canvas id="gameCanvas"></canvas>
+                <div id="flash-overlay"></div>
+                <div id="start-modal" class="modal">
+                    <h2>:: 链接准备 ::</h2>
+                    <p>选择皮肤 (P1):</p>
+                    <div class="selection-container">
+                        <button id="skin-cyber" class="select-button active">经典赛博</button>
+                        <button id="skin-sakura" class="select-button">樱花粉</button>
+                    </div>
+                    <p>选择模式:</p>
+                    <button id="start-1p-button" class="modal-button">>> 单人游戏 <<</button>
+                    <button id="start-2p-button" class="modal-button">>> 双人对决 <<</button>
+                </div>
+                
+                <div id="notification-modal" class="modal">
+                    <h2 id="notification-title">:: 获得强化 ::</h2>
+                    <p id="notification-desc">P1: 获得 +1 长度!</p>
+                </div>
+
+                <div id="game-over-modal" class="modal">
+                    <h2 id="game-over-title">:: 链接中断 ::</h2>
+                    <p id="final-score">P1: 0 | P2: 0</p>
+                    <button id="restart-button" class="modal-button">>> 返回主菜单 <<</button>
+                </div>
+            </div>
+
+            <div id="status-bars">
+                <div id="p1-stamina-container"> <div id="p1-stamina-bar"></div> </div>
+                <div id="p2-stamina-container"> <div id="p2-stamina-bar"></div> </div>
+                <div id="buff-status">状态: 待机</div>
+            </div>
+        </div>
+
+        <div id="rules-column">
+            <h2>:: 游戏规则 v9.0 ::</h2>
+            <ul>
+                <li><strong>目标:</strong> 击败你的对手！</li>
+                <li><strong>P1 (蓝/粉):</strong> <code>方向键</code> 移动, <code>/</code> 冲刺</li>
+                <li><strong>P2 (绿):</strong> <code>W A S D</code> 移动, <code>空格</code> 冲刺</li>
+                <li><strong class="color-pvp">【新】生命:</strong> 你的**长度**就是你的生命！
+                    <ul>
+                        <li>吃到**任何食物** = 长度 +1</li>
+                        <li>撞到障碍 = 长度 -1</li>
+                    </ul>
+                </li>
+                <li><strong class="color-pvp">【新】胜利:</strong> 蛇的长度**小于等于 2** 即判为“死亡”。另一方玩家立即获胜！</li>
+                <li><strong>障碍:</strong>
+                    <ul>
+                        <li>撞自己: <span class="color-enemy">-1 长度</span></li>
+                        <li>撞队友: <span class="color-pvp">-1 长度</span></li>
+                        <li>撞敌人: <span class="color-enemy">-1 长度</span></li>
+                    </ul>
+                </li>
+                <li><strong style="color: #00d9ff;">传送门:</strong> 边缘是安全的！你会从另一侧穿出。</li>
+                <li><strong class="color-enemy">追踪者:</strong> 红色敌人会主动追猎最近的玩家！</li>
+                <li><strong>升级:</strong> 每吃 5 个食物，吃到的玩家会获得一次**即时随机奖励**。</li>
+            </ul>
+        </div>
+    </div>
+    
+    <script>
+        // --- 1. 游戏设置 ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const tileCount = 30;
+        let gridSize;
+
+        // --- 2. 游戏状态变量 ---
+        let snake1, snake2, foods = [], enemies = [];
+        let dx1, dy1, dx2, dy2;
+        let score1, score2, foodEatenCount1, foodEatenCount2; // 【修改】独立计分
+        let isPaused, isGameOver, isGameStarted;
+        let isTwoPlayerMode = false;
+        let gameLoopInterval;
+        const MIN_SNAKE_LENGTH = 2; // 【新】
+
+        // --- 3. 技能变量 ---
+        let stamina1, stamina2, maxStamina, staminaRechargeRate, dashCost;
+        let isDashing1, isDashing2, dashTimer1, dashTimer2;
+        let isGhost1, isGhost2, ghostTimer1, ghostTimer2;
+        let isSpedUp1, isSpedUp2, speedTimer1, speedTimer2;
+        let baseGameSpeed, currentGameSpeed;
+        const GAME_LOOP_INTERVAL = 50;
+        
+        // --- 4. 皮肤变量 ---
+        let currentSkin = 'cyber';
+        const skins = {
+            'cyber': { p1Head: '#ffffff', p1Body: '#00d9ff', p2Head: '#ffffff', p2Body: '#2bff88' },
+            'sakura': { p1Head: '#ffffff', p1Body: '#ffb6c1', p2Head: '#ffffff', p2Body: '#2bff88' }
+        };
+
+        // --- 5. 伤害常量 ---
+        const DAMAGE_SELF = 1; // 伤害 = 1 节
+        const DAMAGE_ENEMY = 1;
+        const DAMAGE_PVP = 1;
+
+        // --- 6. DOM 元素 ---
+        const p1ScoreEl = document.getElementById('p1-score');
+        const p2ScoreEl = document.getElementById('p2-score');
+        const vsDisplayEl = document.getElementById('vs-display');
+        const staminaBarEl_P1 = document.getElementById('p1-stamina-bar');
+        const staminaContainer_P1 = document.getElementById('p1-stamina-container');
+        const staminaBarEl_P2 = document.getElementById('p2-stamina-bar');
+        const staminaContainer_P2 = document.getElementById('p2-stamina-container');
+        const buffStatusEl = document.getElementById('buff-status');
+        const flashOverlayEl = document.getElementById('flash-overlay');
+        const startModal = document.getElementById('start-modal');
+        const startButton1P = document.getElementById('start-1p-button');
+        const startButton2P = document.getElementById('start-2p-button');
+        const skinCyberBtn = document.getElementById('skin-cyber');
+        const skinSakuraBtn = document.getElementById('skin-sakura');
+        const notificationModal = document.getElementById('notification-modal');
+        const notificationTitle = document.getElementById('notification-title');
+        const notificationDesc = document.getElementById('notification-desc');
+        let notificationTimer;
+        const gameOverModal = document.getElementById('game-over-modal');
+        const gameOverTitle = document.getElementById('game-over-title'); // 【新】
+        const restartBtn = document.getElementById('restart-button');
+        const finalScoreEl = document.getElementById('final-score');
+
+        // --- 7. 响应式画布 ---
+        function resizeGame() {
+            const containerWidth = canvas.parentElement.clientWidth;
+            gridSize = Math.floor(containerWidth / tileCount);
+            canvas.width = gridSize * tileCount;
+            canvas.height = gridSize * tileCount;
+        }
+        function resizeAndRedraw() {
+            resizeGame();
+            if (isGameStarted) drawGame();
+            else { ctx.fillStyle = '#000'; ctx.fillRect(0, 0, canvas.width, canvas.height); }
+        }
+
+        // --- 8. 游戏启动 ---
+        function startGame(is2P) {
+            isTwoPlayerMode = is2P;
+            startModal.style.display = 'none';
+            if (isTwoPlayerMode) {
+                p2ScoreEl.style.display = 'block';
+                vsDisplayEl.style.display = 'block';
+                staminaContainer_P2.style.display = 'block';
+            } else {
+                p2ScoreEl.style.display = 'none';
+                vsDisplayEl.style.display = 'none';
+                staminaContainer_P2.style.display = 'none';
+            }
+            initializeGame();
+        }
+        function setSkin(skinName) {
+            currentSkin = skinName;
+            document.body.className = `skin-${skinName}`;
+            skinCyberBtn.classList.toggle('active', skinName === 'cyber');
+            skinSakuraBtn.classList.toggle('active', skinName === 'sakura');
+        }
+
+        // --- 9. 游戏核心函数 (修改) ---
+        function initializeGame() {
+            // P1 (向上出生, 初始长度3)
+            snake1 = [ { x: 10, y: 15 }, { x: 10, y: 16 }, { x: 10, y: 17 } ];
+            dx1 = 0; dy1 = -1; // 向上
+            score1 = 0; foodEatenCount1 = 0;
+            stamina1 = maxStamina = 100;
+            isDashing1 = false; dashTimer1 = 0;
+            isGhost1 = false; ghostTimer1 = 0;
+            isSpedUp1 = false; speedTimer1 = 0;
+
+            if (isTwoPlayerMode) {
+                // P2 (向上出生, 初始长度3)
+                snake2 = [ { x: 20, y: 15 }, { x: 20, y: 16 }, { x: 20, y: 17 } ];
+                dx2 = 0; dy2 = -1; // 向上
+                score2 = 0; foodEatenCount2 = 0;
+                stamina2 = maxStamina;
+                isDashing2 = false; dashTimer2 = 0;
+                isGhost2 = false; ghostTimer2 = 0;
+                isSpedUp2 = false; speedTimer2 = 0;
+            } else {
+                snake2 = null; score2 = 0; foodEatenCount2 = 0;
+            }
+
+            isPaused = false; isGameOver = false; isGameStarted = true;
+            baseGameSpeed = 150; currentGameSpeed = 0;
+            staminaRechargeRate = 0.5; dashCost = 50;
+            foods = []; enemies = [];
+            spawnInitialFoods(isTwoPlayerMode ? 10 : 5);
+            spawnInitialEnemies(isTwoPlayerMode ? 4 : 3);
+            updateUI();
+            buffStatusEl.textContent = "状态: 正常";
+            gameOverModal.style.display = 'none';
+            notificationModal.style.display = 'none';
+            if (gameLoopInterval) clearInterval(gameLoopInterval);
+            gameLoopInterval = setInterval(gameLoop, GAME_LOOP_INTERVAL);
+        }
+
+        // --- 10. 物体生成 ---
+        function isOccupied(x, y) {
+            if (snake1 && snake1.some(seg => seg.x === x && seg.y === y)) return true;
+            if (isTwoPlayerMode && snake2 && snake2.some(seg => seg.x === x && seg.y === y)) return true;
+            if (enemies.some(e => e.x === x && e.y === y)) return true;
+            if (foods.some(f => f.x === x && f.y === y)) return true;
+            return false;
+        }
+        function spawnFood() {
+            let foodType = 'normal';
+            const rand = Math.random();
+            if (rand > 0.85) foodType = 'ghost';
+            else if (rand > 0.70) foodType = 'chili';
+            else if (rand > 0.60) foodType = 'health_pack';
+            let pos;
+            do { pos = { x: Math.floor(Math.random() * tileCount), y: Math.floor(Math.random() * tileCount) }; } 
+            while (isOccupied(pos.x, pos.y));
+            foods.push({ ...pos, type: foodType });
+        }
+        function spawnEnemy() {
+            let pos;
+            do {
+                pos = { x: Math.floor(Math.random() * tileCount), y: Math.floor(Math.random() * tileCount) };
+            } while (isOccupied(pos.x, pos.y) || (pos.x > 10 && pos.x < 20 && pos.y > 10 && pos.y < 20));
+            enemies.push({ ...pos, 
+                damage: DAMAGE_ENEMY, 
+                moveTimer: 0, 
+                moveThreshold: 200 // 敌人移速 (200ms)
+            });
+        }
+        function spawnInitialFoods(count) { for(let i=0; i<count; i++) spawnFood(); }
+        function spawnInitialEnemies(count) { for(let i=0; i<count; i++) spawnEnemy(); }
+
+        // --- 11. 游戏主循环 (修改) ---
+        function gameLoop() {
+            if (isPaused || isGameOver) return;
+            updateTimers();
+            
+            let speedThreshold1 = baseGameSpeed;
+            if (isDashing1) speedThreshold1 = 40; else if (isSpedUp1) speedThreshold1 = 80;
+            let speedThreshold2 = baseGameSpeed;
+            if (isTwoPlayerMode) {
+                if (isDashing2) speedThreshold2 = 40; else if (isSpedUp2) speedThreshold2 = 80;
+            }
+            currentGameSpeed += GAME_LOOP_INTERVAL;
+            
+            let p1Moved = false, p2Moved = false;
+
+            if (currentGameSpeed >= speedThreshold1) {
+                if(snake1.length > 0) moveSnake(1); 
+                p1Moved = true;
+            }
+            if (isTwoPlayerMode && currentGameSpeed >= speedThreshold2) {
+                if(snake2.length > 0) moveSnake(2);
+                p2Moved = true;
+            }
+            if(currentGameSpeed >= Math.min(speedThreshold1, (isTwoPlayerMode ? speedThreshold2 : 999))) {
+                moveEnemies();
+                checkDamageCollisions();
+                currentGameSpeed = 0;
+            }
+            
+            let eatenP1 = null, eatenP2 = null;
+            if(snake1.length > 0) eatenP1 = checkFoodCollisions(1);
+            if(eatenP1) handleFoodEaten(eatenP1, 1);
+            
+            if (isTwoPlayerMode && snake2.length > 0) {
+                eatenP2 = checkFoodCollisions(2);
+                if (eatenP2) handleFoodEaten(eatenP2, 2);
+            }
+            
+            // 【修改】新的变长/变短逻辑
+            // 如果移动了，且没有吃到食物，就变短
+            if (p1Moved && snake1.length > 0 && !eatenP1) snake1.pop();
+            if (p2Moved && snake2.length > 0 && !eatenP2) snake2.pop();
+            // (如果吃到了食物，这里就不会pop，从而实现变长)
+            
+            drawGame();
+        }
+
+        function updateTimers() {
+            const timeDelta = GAME_LOOP_INTERVAL;
+            if (!isDashing1 && stamina1 < maxStamina) stamina1 = Math.min(maxStamina, stamina1 + staminaRechargeRate);
+            if (isDashing1) { dashTimer1 -= timeDelta; if (dashTimer1 <= 0) isDashing1 = false; }
+            if (isGhost1) { ghostTimer1 -= timeDelta; if (ghostTimer1 <= 0) isGhost1 = false; }
+            if (isSpedUp1) { speedTimer1 -= timeDelta; if (speedTimer1 <= 0) isSpedUp1 = false; }
+            if (isTwoPlayerMode) {
+                if (!isDashing2 && stamina2 < maxStamina) stamina2 = Math.min(maxStamina, stamina2 + staminaRechargeRate);
+                if (isDashing2) { dashTimer2 -= timeDelta; if (dashTimer2 <= 0) isDashing2 = false; }
+                if (isGhost2) { ghostTimer2 -= timeDelta; if (ghostTimer2 <= 0) isGhost2 = false; }
+                if (isSpedUp2) { speedTimer2 -= timeDelta; if (speedTimer2 <= 0) isSpedUp2 = false; }
+            }
+            updateUI();
+        }
+
+        // --- 12. 绘制 ---
+        function drawGame() {
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            if (snake1.length > 0) drawSnake(snake1, 1);
+            if (isTwoPlayerMode && snake2.length > 0) drawSnake(snake2, 2);
+            foods.forEach(f => {
+                let foodColor;
+                switch (f.type) {
+                    case 'ghost': foodColor = '#9b59b6'; break;
+                    case 'chili': foodColor = '#e67e22'; break;
+                    case 'health_pack': foodColor = '#2bff88'; break;
+                    default: foodColor = '#f1c40f';
+                }
+                ctx.fillStyle = foodColor;
+                ctx.beginPath();
+                ctx.arc(f.x * gridSize + gridSize / 2, f.y * gridSize + gridSize / 2, gridSize / 2 - 2, 0, 2 * Math.PI);
+                ctx.fill();
+            });
+            enemies.forEach(e => {
+                ctx.fillStyle = '#ff3b3b'; 
+                ctx.fillRect(e.x * gridSize, e.y * gridSize, gridSize, gridSize);
+            });
+        }
+        function drawSnake(snake, playerNum) {
+            const colors = skins[currentSkin];
+            let headColor, bodyColor, isGhost;
+            if(playerNum === 1) { headColor = colors.p1Head; bodyColor = colors.p1Body; isGhost = isGhost1; }
+            else { headColor = colors.p2Head; bodyColor = colors.p2Body; isGhost = isGhost2; }
+            ctx.fillStyle = isGhost ? bodyColor.replace(')', ', 0.5)').replace('rgb', 'rgba') : bodyColor;
+            snake.forEach(segment => { ctx.fillRect(segment.x * gridSize, segment.y * gridSize, gridSize - 1, gridSize - 1); });
+            ctx.fillStyle = isGhost ? headColor.replace(')', ', 0.7)').replace('rgb', 'rgba') : headColor;
+            ctx.fillRect(snake[0].x * gridSize, snake[0].y * gridSize, gridSize - 1, gridSize - 1);
+        }
+
+        // --- 13. 移动与碰撞 ---
+        function moveSnake(playerNum) {
+            let snake = (playerNum === 1) ? snake1 : snake2;
+            let dx = (playerNum === 1) ? dx1 : dx2;
+            let dy = (playerNum === 1) ? dy1 : dy2;
+            const head = { x: snake[0].x + dx, y: snake[0].y + dy };
+            if (head.x < 0) head.x = tileCount - 1;
+            if (head.x >= tileCount) head.x = 0;
+            if (head.y < 0) head.y = tileCount - 1;
+            if (head.y >= tileCount) head.y = 0;
+            snake.unshift(head);
+        }
+        function getNearestPlayerHead(enemyPos) {
+            const head1 = (snake1.length > 0) ? snake1[0] : null;
+            const head2 = (isTwoPlayerMode && snake2.length > 0) ? snake2[0] : null;
+            let dist1 = Infinity; let dist2 = Infinity;
+            if (head1) dist1 = Math.abs(head1.x - enemyPos.x) + Math.abs(head1.y - enemyPos.y);
+            if (head2) dist2 = Math.abs(head2.x - enemyPos.x) + Math.abs(head2.y - enemyPos.y);
+            if (dist1 === Infinity && dist2 === Infinity) return null;
+            if (dist1 < dist2) return head1;
+            else return head2;
+        }
+        function moveEnemies() {
+            enemies.forEach(e => {
+                e.moveTimer += GAME_LOOP_INTERVAL;
+                if (e.moveTimer >= e.moveThreshold) {
+                    e.moveTimer = 0;
+                    const target = getNearestPlayerHead(e);
+                    if (target) {
+                        const diffX = target.x - e.x;
+                        const diffY = target.y - e.y;
+                        if (Math.abs(diffX) > Math.abs(diffY)) {
+                            if (diffX !== 0) e.x += Math.sign(diffX);
+                        } else {
+                            if (diffY !== 0) e.y += Math.sign(diffY);
+                        }
+                    } 
+                }
+            });
+        }
+        function checkDamageCollisions() {
+            const head1 = (snake1.length > 0) ? snake1[0] : null;
+            const head2 = (isTwoPlayerMode && snake2.length > 0) ? snake2[0] : null;
+            let p1Hit = false, p2Hit = false;
+            if (head1) p1Hit = getPlayerDamage(1, head1, (head2 ? snake2 : null));
+            if (head2) p2Hit = getPlayerDamage(2, head2, (head1 ? snake1 : null));
+            if (p2Hit) applyDamage(2, 1);
+            if (p1Hit) applyDamage(1, 1);
+        }
+        function getPlayerDamage(playerNum, head, otherSnake) {
+            let snake = (playerNum === 1) ? snake1 : snake2;
+            let isGhost = (playerNum === 1) ? isGhost1 : isGhost2;
+            if (!isGhost) {
+                for (let i = 1; i < snake.length; i++) {
+                    if (head.x === snake[i].x && head.y === snake[i].y) return true; // 撞自己
+                }
+            }
+            for (const e of enemies) {
+                if (head.x === e.x && head.y === e.y) return true; // 撞敌人
+            }
+            if (isTwoPlayerMode && otherSnake && snake1.length > 0 && snake2.length > 0) {
+                for (let i = 0; i < otherSnake.length; i++) {
+                    if (head.x === otherSnake[i].x && head.y === otherSnake[i].y) return true; // 撞队友
+                }
+            }
+            return false;
+        }
+        function checkFoodCollisions(playerNum) {
+            let snake = (playerNum === 1) ? snake1 : snake2;
+            if (!snake || snake.length <= 0) return null;
+            const head = snake[0];
+            for (let i = 0; i < foods.length; i++) {
+                if (head.x === foods[i].x && head.y === foods[i].y) {
+                    const eaten = foods.splice(i, 1)[0];
+                    spawnFood();
+                    return eaten;
+                }
+            }
+            return null;
+        }
+
+        // --- 14. 效果处理 (修改) ---
+        function triggerFlash(type) {
+            flashOverlayEl.className = '';
+            void flashOverlayEl.offsetWidth; 
+            flashOverlayEl.className = `flash-${type}`;
+        }
+        
+        /** 【修改】应用伤害 (减长度) */
+        function applyDamage(playerNum, amount) {
+            if (isGameOver) return;
+            let snake = (playerNum === 1) ? snake1 : snake2;
+            
+            if (snake.length <= 0) return; // 已经死了
+            
+            for(let i=0; i<amount; i++) {
+                if(snake.length > 0) snake.pop();
+            }
+            
+            triggerFlash('red');
+            updateUI(); // 更新分数 (长度)
+            
+            if (snake.length <= MIN_SNAKE_LENGTH) {
+                // 玩家死亡
+                triggerGameOver(playerNum === 1 ? 2 : 1); // 对方赢
+            }
+        }
+        
+        /** 【修改】回血 = 增加长度 */
+        function addSnakeLength(amount, playerNum) {
+            if (isGameOver) return;
+            let snake = (playerNum === 1) ? snake1 : snake2;
+            if (snake.length <= 0) return; // 死了不能复活
+            
+            const tail = snake[snake.length - 1] || snake[0]; // 获取尾巴
+            for(let i=0; i<amount; i++) {
+                snake.push({ ...tail }); // 在尾巴处添加
+            }
+            triggerFlash('green');
+            updateUI();
+        }
+
+        /** 【修改】游戏结束 (有胜利者) */
+        function triggerGameOver(winnerNum) {
+            isGameOver = true; isGameStarted = false;
+            clearInterval(gameLoopInterval);
+            
+            if (isTwoPlayerMode) {
+                gameOverTitle.textContent = `:: P${winnerNum} 获胜! ::`;
+                finalScoreEl.textContent = `P1: ${score1} | P2: ${score2}`;
+            } else {
+                gameOverTitle.textContent = `:: 链接中断 ::`;
+                finalScoreEl.textContent = `最终得分: ${score1}`;
+            }
+            
+            gameOverModal.style.display = 'flex';
+        }
+        
+        function tryDash(playerNum) {
+            if (playerNum === 1 && stamina1 >= dashCost && !isDashing1) {
+                stamina1 -= dashCost; isDashing1 = true; dashTimer1 = 300;
+            }
+            if (playerNum === 2 && stamina2 >= dashCost && !isDashing2) {
+                stamina2 -= dashCost; isDashing2 = true; dashTimer2 = 300;
+            }
+        }
+        
+        /** 【修改】吃食物 (加分 + 触发升级) */
+        function handleFoodEaten(foodItem, playerNum) {
+            // 加分
+            if (playerNum === 1) {
+                score1 += 10;
+                foodEatenCount1++;
+            } else {
+                score2 += 10;
+                foodEatenCount2++;
+            }
+            
+            // 触发 Buff
+            switch (foodItem.type) {
+                case 'ghost': 
+                    if (playerNum === 1) { isGhost1 = true; ghostTimer1 = 5000; }
+                    else { isGhost2 = true; ghostTimer2 = 5000; }
+                    break;
+                case 'chili': 
+                    if (playerNum === 1) { isSpedUp1 = true; speedTimer1 = 5000; }
+                    else { isSpedUp2 = true; speedTimer2 = 5000; }
+                    break;
+                case 'health_pack': 
+                    addSnakeLength(1, playerNum); // 医疗包=加1长度
+                    break;
+                default: break;
+            }
+            updateUI();
+            
+            // 触发即时升级
+            let count = (playerNum === 1) ? foodEatenCount1 : foodEatenCount2;
+            if (count % 5 === 0) {
+                applyInstantUpgrade(playerNum);
+            }
+        }
+
+        /** 【修改】更新UI (显示分数和长度) */
+        function updateUI() {
+            let len1 = (snake1 && snake1.length > 0) ? snake1.length : 0;
+            let len2 = (snake2 && snake2.length > 0) ? snake2.length : 0;
+
+            p1ScoreEl.textContent = `P1: ${score1} (长度: ${len1})`;
+            if(isTwoPlayerMode) {
+                p2ScoreEl.textContent = `P2: ${score2} (长度: ${len2})`;
+            }
+            
+            staminaBarEl_P1.style.width = (stamina1 / maxStamina) * 100 + '%';
+            if(isTwoPlayerMode) staminaBarEl_P2.style.width = (stamina2 / maxStamina) * 100 + '%';
+            
+            if (isDashing1) buffStatusEl.textContent = "P1: 冲刺中!";
+            else if (isGhost1) buffStatusEl.textContent = `P1: 幽灵 (${(ghostTimer1/1000).toFixed(1)}s)`;
+            else if (isSpedUp1) buffStatusEl.textContent = `P1: 加速! (${(speedTimer1/1000).toFixed(1)}s)`;
+            else if (isGameStarted) buffStatusEl.textContent = "状态: 正常";
+            else buffStatusEl.textContent = "状态: 待机";
+        }
+        
+        function showNotification(text) {
+            notificationTitle.textContent = ":: 获得强化 ::";
+            notificationDesc.textContent = text;
+            notificationModal.style.display = 'flex';
+            if (notificationTimer) clearTimeout(notificationTimer);
+            notificationTimer = setTimeout(() => {
+                notificationModal.style.display = 'none';
+            }, 1500);
+        }
+
+        /** 【修改】即时升级 */
+        function applyInstantUpgrade(playerNum) {
+            const upgrades = [
+                { text: "增加 1 节长度", action: "add_length" },
+                { text: "引擎超频 (永久速度+5%)", action: "increase_speed" },
+                { text: "下载数据包 (+50 分)", action: "add_score" },
+                { text: "补充体力 (+50)", action: "increase_stamina" }
+            ];
+            let choice = upgrades[Math.floor(Math.random() * upgrades.length)];
+            let targetText = (playerNum === 1 || !isTwoPlayerMode) ? "P1" : "P2";
+
+            switch (choice.action) {
+                case "add_length": addSnakeLength(1, playerNum); break;
+                case "increase_speed": baseGameSpeed *= 0.95; break;
+                case "add_score": 
+                    if(playerNum === 1) score1 += 50; else score2 += 50;
+                    break;
+                case "increase_stamina":
+                    if(playerNum === 1) stamina1 = Math.min(maxStamina, stamina1 + 50);
+                    else stamina2 = Math.min(maxStamina, stamina2 + 50);
+                    break;
+            }
+            updateUI();
+            showNotification(`${targetText}: ${choice.text}`);
+        }
+
+        // --- 15. 事件监听 ---
+        document.addEventListener('keydown', e => {
+            if (isGameOver || isPaused || !isGameStarted) return;
+            switch (e.key) {
+                case 'ArrowUp': if (dy1 === 0 && snake1.length > 0) { dx1 = 0; dy1 = -1; } break;
+                case 'ArrowDown': if (dy1 === 0 && snake1.length > 0) { dx1 = 0; dy1 = 1; } break;
+                case 'ArrowLeft': if (dx1 === 0 && snake1.length > 0) { dx1 = -1; dy1 = 0; } break;
+                case 'ArrowRight': if (dx1 === 0 && snake1.length > 0) { dx1 = 1; dy1 = 0; } break;
+                case '/': case '.': tryDash(1); break;
+            }
+            if (isTwoPlayerMode) {
+                switch (e.key.toLowerCase()) {
+                    case 'w': if (dy2 === 0 && snake2.length > 0) { dx2 = 0; dy2 = -1; } break;
+                    case 's': if (dy2 === 0 && snake2.length > 0) { dx2 = 0; dy2 = 1; } break;
+                    case 'a': if (dx2 === 0 && snake2.length > 0) { dx2 = -1; dy2 = 0; } break;
+                    case 'd': if (dx2 === 0 && snake2.length > 0) { dx2 = 1; dy2 = 0; } break;
+                    case ' ': e.preventDefault(); tryDash(2); break;
+                }
+            }
+        });
+        startButton1P.addEventListener('click', () => startGame(false));
+        startButton2P.addEventListener('click', () => startGame(true));
+        skinCyberBtn.addEventListener('click', () => setSkin('cyber'));
+        skinSakuraBtn.addEventListener('click', () => setSkin('sakura'));
+        restartBtn.addEventListener('click', () => {
+            gameOverModal.style.display = 'none';
+            startModal.style.display = 'flex';
+        });
+        window.addEventListener('resize', resizeAndRedraw);
+
+        // --- 16. 启动 ---
+        setSkin(currentSkin);
+        resizeAndRedraw(); 
+
+    </script>
+</body>
+</html>
